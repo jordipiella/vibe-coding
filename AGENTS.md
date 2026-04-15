@@ -30,8 +30,8 @@ Este repositorio define un flujo de trabajo asistido por agentes para proyectos 
 2. Implementar el menor corte vertical posible.
 3. Validar el cambio con comandos y checks relevantes.
 4. Actualizar documentación si cambian contratos, flujos o decisiones.
-5. Revisar el PR o diff antes de pedir merge.
-6. Publicar un comentario top-level de `PR Review` ligado al `Head SHA` actual del PR.
+5. Esperar el comentario de `Automated PR Review` sobre el `Head SHA` actual del PR.
+6. Responder findings, actualizar el código si aplica y documentar qué se acepta o se descarta.
 
 ## Artefactos mínimos por cambio
 - Resumen funcional del cambio.
@@ -40,7 +40,7 @@ Este repositorio define un flujo de trabajo asistido por agentes para proyectos 
 - Validaciones ejecutadas y validaciones pendientes.
 - Impacto en documentación.
 - Riesgos abiertos para revisión.
-- Comentario `PR Review` para el `Head SHA` actual del PR.
+- Comentario automático de review para el `Head SHA` actual del PR.
 
 ## Contrato de scripts objetivo
 Cuando el proyecto exista, el estándar será:
@@ -64,10 +64,11 @@ Si un repo no implementa alguno de estos comandos, el `validator` debe reportar 
 - `database`: opcional cuando el backend necesite inspección segura de datos o esquema.
 
 ## Gate de PR review
+- Toda PR abierta en el mismo repositorio debe pasar el workflow `Automated PR Review`.
 - Toda PR abierta debe pasar el workflow `PR Review Gate`.
-- El gate exige un comentario top-level con marcador `<!-- pr-review-gate -->`.
+- El comentario automático lleva los marcadores `<!-- auto-pr-review -->` y `<!-- pr-review-gate -->`.
 - El comentario debe incluir `Head SHA`, `Findings` y `Summary`.
-- Si cambia el `Head SHA`, la PR debe revisarse otra vez y publicar un comentario nuevo o actualizado.
+- Si cambia el `Head SHA`, el workflow vuelve a revisar la PR y actualiza el comentario.
 
 ## Regla de aprendizaje
 Construir por capas. Primero definir roles, skills y criterios de calidad. Después añadir MCPs y, solo cuando el repositorio tenga comandos reales, automatizar validación y revisión.

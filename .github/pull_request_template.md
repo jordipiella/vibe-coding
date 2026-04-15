@@ -8,13 +8,13 @@
 
 ## PR Review
 
-- [ ] I ran `$github-pr-review` on the latest PR diff and posted a top-level review comment for the current `Head SHA`.
+- The workflow `Automated PR Review` will publish or update the review comment automatically.
+- PR owner: respond in the PR conversation explaining which findings you accept, dismiss, or defer.
 
 ## Notes
 
 - 
 
 <!--
-The PR Review Gate requires a top-level PR comment that matches the current head SHA.
-Use .github/pr-review-comment-template.md as the comment template.
+The PR Review Gate is satisfied by the automated review comment when it matches the current head SHA.
 -->

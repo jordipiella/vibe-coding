@@ -28,13 +28,21 @@ pnpm test:e2e
 
 ## PR Review
 
-Toda PR debe pasar por `github-pr-review` antes del merge.
+Toda PR dispara el workflow `Automated PR Review`.
 
-1. Ejecuta el review sobre el diff final del PR.
-2. Publica un comentario top-level usando la plantilla de `.github/pr-review-comment-template.md`.
-3. Asegúrate de que el comentario apunte al `Head SHA` actual.
+1. El workflow lee el diff y llama al modelo definido por `OPENAI_PR_REVIEW_MODEL`.
+2. Publica o actualiza un comentario top-level con findings y summary para el `Head SHA` actual.
+3. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
 
-El workflow `PR Review Gate` falla si falta ese comentario o si quedó obsoleto tras un push nuevo.
+Configuración necesaria en GitHub:
+
+```text
+Repository secret: OPENAI_API_KEY
+Repository variable (optional): OPENAI_PR_REVIEW_MODEL
+```
+
+El valor por defecto del modelo es `gpt-5-1-mini`.
+El workflow `PR Review Gate` falla si el comentario automático falta o si quedó obsoleto tras un push nuevo.
 
 ## Estructura
 
@@ -54,4 +62,5 @@ docs/
 2. Implementa backend en `apps/api`.
 3. Implementa consumo en `apps/web`.
 4. Ejecuta `lint`, `typecheck`, `test` y `build`.
-5. Si cambió comportamiento, actualiza `docs/`.
+5. Revisa y responde el comentario de `Automated PR Review`.
+6. Si cambió comportamiento, actualiza `docs/`.
