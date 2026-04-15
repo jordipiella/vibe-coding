@@ -8,6 +8,11 @@ on:
       - synchronize
       - edited
       - ready_for_review
+  issue_comment:
+    types:
+      - created
+      - edited
+      - deleted
 
 permissions:
   contents: read
@@ -16,14 +21,35 @@ permissions:
 
 jobs:
   pr-review-gate:
-    if: github.event.pull_request.draft == false
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Fetch PR metadata
+        id: fetch-pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pullRequest =
+              context.payload.pull_request ??
+              (
+                await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.issue.number,
+                })
+              ).data;
+
+            core.setOutput('draft', String(pullRequest.draft));
+            core.setOutput('head_sha', pullRequest.head.sha);
+
       - name: Fetch PR comments
+        if: steps.fetch-pr.outputs.draft != 'true'
         id: fetch-comments
         uses: actions/github-script@v7
         with:
@@ -45,7 +71,8 @@ jobs:
             core.setOutput('comments_json', JSON.stringify(serializedComments));
 
       - name: Validate PR review comment
+        if: steps.fetch-pr.outputs.draft != 'true'
         env:
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_SHA: ${{ steps.fetch-pr.outputs.head_sha }}
           PR_REVIEW_COMMENTS_JSON: ${{ steps.fetch-comments.outputs.comments_json }}
         run: node scripts/check-pr-review-gate.mjs
