@@ -24,6 +24,7 @@ const { data, error, status } = storeToRefs(healthStore);
         <li>API mínima con Fastify.</li>
         <li>Contratos validados con Zod.</li>
         <li>Vitest y Playwright listos para crecer.</li>
+        <li>Review automática de PR publicada en GitHub Actions.</li>
       </ul>
     </section>
 
@@ -68,4 +69,3 @@ const { data, error, status } = storeToRefs(healthStore);
     </section>
   </main>
 </template>
-
