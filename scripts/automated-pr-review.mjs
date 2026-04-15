@@ -5,7 +5,7 @@ import process from 'node:process';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const GATE_MARKER = '<!-- pr-review-gate -->';
-const DEFAULT_MODEL = 'gpt-5-1-mini';
+const DEFAULT_MODEL = 'gpt-5-mini';
 const MAX_PROMPT_CHARS = 30000;
 const MAX_PATCH_CHARS_PER_FILE = 3500;
 const MAX_FINDINGS = 8;
