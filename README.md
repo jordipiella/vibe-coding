@@ -23,6 +23,9 @@ pnpm build
 pnpm test:e2e
 ```
 
+`pnpm dev` arranca web y API; la API recompila antes los contratos compartidos.
+`pnpm test:e2e` levanta ambos servicios y valida el flujo real `web -> api -> contracts`.
+
 ## Estructura
 
 ```text
@@ -42,4 +45,3 @@ docs/
 3. Implementa consumo en `apps/web`.
 4. Ejecuta `lint`, `typecheck`, `test` y `build`.
 5. Si cambió comportamiento, actualiza `docs/`.
-
