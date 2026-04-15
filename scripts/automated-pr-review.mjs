@@ -163,7 +163,6 @@ async function requestReviewFromModel(prompt) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.1,
       max_output_tokens: 2200,
       text: {
         format: {
