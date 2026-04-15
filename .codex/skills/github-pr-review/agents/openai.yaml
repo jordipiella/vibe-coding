@@ -1,0 +1,15 @@
+interface:
+  display_name: "GitHub PR Review"
+  short_description: "Review PRs for bugs, risks, tests and docs"
+  default_prompt: "Use $github-pr-review to review this pull request and list findings by severity."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "github"
+      description: "GitHub MCP server for pull requests, files, issues and CI context"
+      transport: "streamable_http"
+      url: "https://api.githubcopilot.com/mcp/"
+
+policy:
+  allow_implicit_invocation: true

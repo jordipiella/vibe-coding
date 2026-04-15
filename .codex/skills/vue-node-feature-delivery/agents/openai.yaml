@@ -1,0 +1,7 @@
+interface:
+  display_name: "Vue + Node Delivery"
+  short_description: "Build Vue/TS and Node/TS vertical slices"
+  default_prompt: "Use $vue-node-feature-delivery to implement a Vue + TypeScript and Node + TypeScript change with validation and doc updates."
+
+policy:
+  allow_implicit_invocation: true

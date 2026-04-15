@@ -1,0 +1,17 @@
+{
+  "name": "@vibe/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/server.ts --format esm --dts --clean --out-dir dist",
+    "dev": "tsx watch src/server.ts",
+    "lint": "eslint src test --max-warnings=0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vibe/contracts": "workspace:*",
+    "fastify": "^5.0.0"
+  }
+}
