@@ -31,6 +31,7 @@ Este repositorio define un flujo de trabajo asistido por agentes para proyectos 
 3. Validar el cambio con comandos y checks relevantes.
 4. Actualizar documentación si cambian contratos, flujos o decisiones.
 5. Revisar el PR o diff antes de pedir merge.
+6. Publicar un comentario top-level de `PR Review` ligado al `Head SHA` actual del PR.
 
 ## Artefactos mínimos por cambio
 - Resumen funcional del cambio.
@@ -39,6 +40,7 @@ Este repositorio define un flujo de trabajo asistido por agentes para proyectos 
 - Validaciones ejecutadas y validaciones pendientes.
 - Impacto en documentación.
 - Riesgos abiertos para revisión.
+- Comentario `PR Review` para el `Head SHA` actual del PR.
 
 ## Contrato de scripts objetivo
 Cuando el proyecto exista, el estándar será:
@@ -60,6 +62,12 @@ Si un repo no implementa alguno de estos comandos, el `validator` debe reportar 
 - `playwright`: recomendado para validar UX y flujos críticos de Vue.
 - `docs/fetch`: opcional para consultar documentación oficial de librerías y APIs.
 - `database`: opcional cuando el backend necesite inspección segura de datos o esquema.
+
+## Gate de PR review
+- Toda PR abierta debe pasar el workflow `PR Review Gate`.
+- El gate exige un comentario top-level con marcador `<!-- pr-review-gate -->`.
+- El comentario debe incluir `Head SHA`, `Findings` y `Summary`.
+- Si cambia el `Head SHA`, la PR debe revisarse otra vez y publicar un comentario nuevo o actualizado.
 
 ## Regla de aprendizaje
 Construir por capas. Primero definir roles, skills y criterios de calidad. Después añadir MCPs y, solo cuando el repositorio tenga comandos reales, automatizar validación y revisión.
