@@ -7,9 +7,27 @@ const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const GATE_MARKER = '<!-- pr-review-gate -->';
 const DEFAULT_MODEL = 'openai/gpt-4o-mini';
 const GITHUB_MODELS_URL = 'https://models.github.ai/inference/chat/completions';
-const MAX_PROMPT_CHARS = 30000;
-const MAX_PATCH_CHARS_PER_FILE = 3500;
 const MAX_FINDINGS = 8;
+const PROMPT_VARIANTS = {
+  standard: {
+    maxPromptChars: 14000,
+    maxPatchCharsPerFile: 1400,
+    maxFilesWithPatch: 8,
+    maxChangedFilesList: 15,
+    maxAgentsChars: 1800,
+    maxStackChars: 1200,
+    maxTokens: 1200,
+  },
+  compact: {
+    maxPromptChars: 7000,
+    maxPatchCharsPerFile: 700,
+    maxFilesWithPatch: 4,
+    maxChangedFilesList: 8,
+    maxAgentsChars: 900,
+    maxStackChars: 600,
+    maxTokens: 800,
+  },
+};
 
 function getRequiredEnv(name) {
   const value = process.env[name]?.trim();
@@ -88,12 +106,19 @@ async function githubPaginate(path) {
   }
 }
 
-function buildDiffContext(files) {
-  let remaining = MAX_PROMPT_CHARS;
+function getFileChangeScore(file) {
+  return (file.patch ? 100000 : 0) + (file.additions ?? 0) + (file.deletions ?? 0);
+}
+
+function buildDiffContext(files, variant) {
+  const selectedFiles = [...files]
+    .sort((left, right) => getFileChangeScore(right) - getFileChangeScore(left))
+    .slice(0, variant.maxFilesWithPatch);
+  let remaining = variant.maxPromptChars;
   const sections = [];
 
-  for (const file of files) {
-    const patch = file.patch ? truncate(file.patch, MAX_PATCH_CHARS_PER_FILE) : '[diff omitted by GitHub]';
+  for (const file of selectedFiles) {
+    const patch = file.patch ? truncate(file.patch, variant.maxPatchCharsPerFile) : '[diff omitted by GitHub]';
     const section = [
       `File: ${file.filename}`,
       `Status: ${file.status}`,
@@ -108,6 +133,12 @@ function buildDiffContext(files) {
 
     sections.push(section);
     remaining -= section.length + 2;
+  }
+
+  const omittedFiles = Math.max(files.length - selectedFiles.length, 0);
+
+  if (omittedFiles > 0) {
+    sections.push(`Additional changed files omitted from diff excerpt: ${omittedFiles}`);
   }
 
   return sections.join('\n\n');
@@ -171,7 +202,7 @@ function extractGithubModelsText(payload) {
   return text.trim();
 }
 
-async function requestReviewFromModel(prompt) {
+async function requestReviewFromModel(prompt, maxTokens) {
   const token = getRequiredEnv('GITHUB_TOKEN');
   const model = process.env.GITHUB_MODELS_PR_REVIEW_MODEL?.trim() || DEFAULT_MODEL;
 
@@ -185,7 +216,7 @@ async function requestReviewFromModel(prompt) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 2200,
+      max_tokens: maxTokens,
       response_format: {
         type: 'json_object',
       },
@@ -222,6 +253,40 @@ async function requestReviewFromModel(prompt) {
 
   const payload = await response.json();
   return parseModelJson(extractGithubModelsText(payload));
+}
+
+function buildPrompt({ pr, files, agentsContext, stackProfileContext, variant }) {
+  const changedFiles = files
+    .slice(0, variant.maxChangedFilesList)
+    .map((file) => `- ${file.filename} (${file.status}, +${file.additions}/-${file.deletions})`)
+    .join('\n');
+  const omittedChangedFiles = Math.max(files.length - variant.maxChangedFilesList, 0);
+  const changedFilesSection = omittedChangedFiles > 0
+    ? `${changedFiles}\n- ...and ${omittedChangedFiles} more changed files`
+    : changedFiles;
+
+  return [
+    `Repository: ${getRequiredEnv('GITHUB_REPOSITORY')}`,
+    `PR #${pr.number}: ${pr.title}`,
+    `Head SHA: ${pr.head.sha}`,
+    `Base branch: ${pr.base.ref}`,
+    `Head branch: ${pr.head.ref}`,
+    '',
+    'PR body:',
+    pr.body?.trim() || '[empty]',
+    '',
+    'Changed files:',
+    changedFilesSection || '[no changed files listed]',
+    '',
+    'Diff excerpts:',
+    buildDiffContext(files, variant),
+    '',
+    'Repository review context from AGENTS.md:',
+    truncate(agentsContext || '[not available]', variant.maxAgentsChars),
+    '',
+    'Repository stack profile:',
+    truncate(stackProfileContext || '[not available]', variant.maxStackChars),
+  ].join('\n');
 }
 
 function normalizeReview(review) {
@@ -348,33 +413,35 @@ async function main() {
   const agentsContext = await readOptionalFile('AGENTS.md', 5000);
   const stackProfileContext = await readOptionalFile('docs/stack-profile.md', 5000);
 
-  const prompt = [
-    `Repository: ${getRequiredEnv('GITHUB_REPOSITORY')}`,
-    `PR #${pr.number}: ${pr.title}`,
-    `Head SHA: ${pr.head.sha}`,
-    `Base branch: ${pr.base.ref}`,
-    `Head branch: ${pr.head.ref}`,
-    '',
-    'PR body:',
-    pr.body?.trim() || '[empty]',
-    '',
-    'Changed files:',
-    files
-      .map((file) => `- ${file.filename} (${file.status}, +${file.additions}/-${file.deletions})`)
-      .join('\n'),
-    '',
-    'Diff excerpts:',
-    buildDiffContext(files),
-    '',
-    'Repository review context from AGENTS.md:',
-    agentsContext || '[not available]',
-    '',
-    'Repository stack profile:',
-    stackProfileContext || '[not available]',
-  ].join('\n');
-
   try {
-    const review = normalizeReview(await requestReviewFromModel(prompt));
+    const standardPrompt = buildPrompt({
+      pr,
+      files,
+      agentsContext,
+      stackProfileContext,
+      variant: PROMPT_VARIANTS.standard,
+    });
+    let rawReview;
+
+    try {
+      rawReview = await requestReviewFromModel(standardPrompt, PROMPT_VARIANTS.standard.maxTokens);
+    } catch (error) {
+      if (error?.name !== 'GitHubModelsReviewError' || error?.providerError?.code !== 'tokens_limit_reached') {
+        throw error;
+      }
+
+      const compactPrompt = buildPrompt({
+        pr,
+        files,
+        agentsContext,
+        stackProfileContext,
+        variant: PROMPT_VARIANTS.compact,
+      });
+
+      rawReview = await requestReviewFromModel(compactPrompt, PROMPT_VARIANTS.compact.maxTokens);
+    }
+
+    const review = normalizeReview(rawReview);
     const commentBody = buildComment({
       headSha: pr.head.sha,
       review,
