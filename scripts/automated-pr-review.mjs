@@ -151,6 +151,15 @@ function parseModelJson(text) {
   }
 }
 
+function parseOpenAiError(errorText) {
+  try {
+    const payload = JSON.parse(errorText);
+    return payload?.error ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function requestReviewFromModel(prompt) {
   const apiKey = getRequiredEnv('OPENAI_API_KEY');
   const model = process.env.OPENAI_PR_REVIEW_MODEL?.trim() || DEFAULT_MODEL;
@@ -202,7 +211,12 @@ async function requestReviewFromModel(prompt) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`OpenAI API failed: ${response.status} ${errorText}`);
+    const apiError = parseOpenAiError(errorText);
+    const error = new Error(`OpenAI API failed: ${response.status} ${errorText}`);
+    error.name = 'OpenAIReviewError';
+    error.status = response.status;
+    error.openaiError = apiError;
+    throw error;
   }
 
   const payload = await response.json();
@@ -272,6 +286,36 @@ function buildComment({ headSha, review }) {
   ].join('\n');
 }
 
+function buildFailureComment({ headSha, error }) {
+  const openaiError = error?.openaiError;
+  const isQuotaError = openaiError?.code === 'insufficient_quota';
+  const headline = isQuotaError
+    ? 'OpenAI quota exhausted for the configured `OPENAI_API_KEY`.'
+    : 'Automated PR review could not be completed.';
+  const details = openaiError?.message || error.message || 'Unknown error.';
+  const followUp = isQuotaError
+    ? '- Repo maintainer: add quota or billing to the OpenAI project, then rerun this workflow or push a new commit.'
+    : '- Repo maintainer: inspect the `Automated PR Review` workflow logs, fix the integration issue, and rerun the workflow.';
+
+  return [
+    AUTO_REVIEW_MARKER,
+    '## Automated PR Review',
+    `Head SHA: ${headSha}`,
+    '',
+    '### Status',
+    `- ${headline}`,
+    '',
+    '### Findings',
+    '- Review not generated because the automation failed before producing findings.',
+    '',
+    '### Summary',
+    `- ${details}`,
+    '',
+    '### Follow-up',
+    followUp,
+  ].join('\n');
+}
+
 async function upsertComment(prNumber, body, comments) {
   const existingComment = comments
     .filter((comment) => String(comment.body ?? '').includes(AUTO_REVIEW_MARKER))
@@ -328,14 +372,28 @@ async function main() {
     stackProfileContext || '[not available]',
   ].join('\n');
 
-  const review = normalizeReview(await requestReviewFromModel(prompt));
-  const commentBody = buildComment({
-    headSha: pr.head.sha,
-    review,
-  });
+  try {
+    const review = normalizeReview(await requestReviewFromModel(prompt));
+    const commentBody = buildComment({
+      headSha: pr.head.sha,
+      review,
+    });
 
-  await upsertComment(prNumber, commentBody, comments);
-  console.log(`Automated PR review published for PR #${prNumber}.`);
+    await upsertComment(prNumber, commentBody, comments);
+    console.log(`Automated PR review published for PR #${prNumber}.`);
+  } catch (error) {
+    if (error?.name !== 'OpenAIReviewError') {
+      throw error;
+    }
+
+    const failureComment = buildFailureComment({
+      headSha: pr.head.sha,
+      error,
+    });
+
+    await upsertComment(prNumber, failureComment, comments);
+    throw error;
+  }
 }
 
 main().catch((error) => {
