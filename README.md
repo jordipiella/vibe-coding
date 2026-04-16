@@ -30,32 +30,24 @@ pnpm test:e2e
 
 Toda PR dispara el workflow `Automated PR Review`.
 
-1. El workflow lee el diff y llama al modelo definido por `OPENAI_PR_REVIEW_MODEL`.
+1. El workflow lee el diff y llama a GitHub Models con el `GITHUB_TOKEN` del workflow.
 2. Publica o actualiza un comentario top-level con findings y summary para el `Head SHA` actual.
 3. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
 
 Configuración necesaria en GitHub:
 
 ```text
-Repository secret: OPENAI_API_KEY
-Repository variable (optional): OPENAI_PR_REVIEW_MODE
-Repository variable (optional): OPENAI_PR_REVIEW_MODEL
+Repository setting: enable GitHub Models for the repository
+Repository variable (optional): GITHUB_MODELS_PR_REVIEW_MODEL
 ```
 
 Valores recomendados:
 
 ```text
-OPENAI_PR_REVIEW_MODE=live
-OPENAI_PR_REVIEW_MODEL=gpt-5-mini
+GITHUB_MODELS_PR_REVIEW_MODEL=openai/gpt-4o-mini
 ```
 
-Para probar el flujo sin consumir cuota, usa:
-
-```text
-OPENAI_PR_REVIEW_MODE=mock
-```
-
-En `mock`, el workflow publica un comentario sintético para validar el ciclo completo de review.
+GitHub Models incluye uso gratuito limitado para empezar y puede ejecutarse desde GitHub Actions con `models: read`.
 El workflow `PR Review Gate` falla si el comentario automático falta o si quedó obsoleto tras un push nuevo.
 
 ## Estructura

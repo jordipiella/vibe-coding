@@ -12,6 +12,7 @@ on:
 permissions:
   contents: read
   issues: write
+  models: read
   pull-requests: read
 
 concurrency:
@@ -37,9 +38,7 @@ jobs:
       - name: Run automated PR review
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_PR_REVIEW_MODE: ${{ vars.OPENAI_PR_REVIEW_MODE }}
-          OPENAI_PR_REVIEW_MODEL: ${{ vars.OPENAI_PR_REVIEW_MODEL }}
+          GITHUB_MODELS_PR_REVIEW_MODEL: ${{ vars.GITHUB_MODELS_PR_REVIEW_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_API_URL: ${{ github.api_url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

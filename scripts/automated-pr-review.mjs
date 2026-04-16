@@ -5,7 +5,8 @@ import process from 'node:process';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const GATE_MARKER = '<!-- pr-review-gate -->';
-const DEFAULT_MODEL = 'gpt-5-mini';
+const DEFAULT_MODEL = 'openai/gpt-4o-mini';
+const GITHUB_MODELS_URL = 'https://models.github.ai/inference/chat/completions';
 const MAX_PROMPT_CHARS = 30000;
 const MAX_PATCH_CHARS_PER_FILE = 3500;
 const MAX_FINDINGS = 8;
@@ -160,54 +161,50 @@ function parseOpenAiError(errorText) {
   }
 }
 
-function getReviewMode() {
-  return (process.env.OPENAI_PR_REVIEW_MODE?.trim().toLowerCase() || 'live');
+function extractGithubModelsText(payload) {
+  const text = payload?.choices?.[0]?.message?.content;
+
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    throw new Error('GitHub Models response did not include assistant text.');
+  }
+
+  return text.trim();
 }
 
 async function requestReviewFromModel(prompt) {
-  const apiKey = getRequiredEnv('OPENAI_API_KEY');
-  const model = process.env.OPENAI_PR_REVIEW_MODEL?.trim() || DEFAULT_MODEL;
+  const token = getRequiredEnv('GITHUB_TOKEN');
+  const model = process.env.GITHUB_MODELS_PR_REVIEW_MODEL?.trim() || DEFAULT_MODEL;
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
+  const response = await fetch(GITHUB_MODELS_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
+      'X-GitHub-Api-Version': '2022-11-28',
     },
     body: JSON.stringify({
       model,
-      max_output_tokens: 2200,
-      text: {
-        format: {
-          type: 'json_object',
-        },
+      max_tokens: 2200,
+      response_format: {
+        type: 'json_object',
       },
-      input: [
+      messages: [
         {
           role: 'system',
           content: [
-            {
-              type: 'input_text',
-              text: [
-                'You are an automated senior code reviewer for a pnpm monorepo with Vue 3, Fastify, TypeScript, Zod, Vitest, and Playwright.',
-                'Review the PR for correctness first, then regressions, contract drift, missing tests, and stale docs.',
-                'Return only valid JSON with this shape:',
-                '{"summary":["..."],"findings":[{"severity":"high|medium|low","title":"...","file":"optional path","details":"...","recommendation":"..."}]}',
-                `Limit findings to at most ${MAX_FINDINGS}.`,
-                'If there are no actionable findings, return an empty findings array.',
-                'Do not praise, do not mention style nitpicks, and do not invent files not present in the PR.',
-              ].join(' '),
-            },
-          ],
+            'You are an automated senior code reviewer for a pnpm monorepo with Vue 3, Fastify, TypeScript, Zod, Vitest, and Playwright.',
+            'Review the PR for correctness first, then regressions, contract drift, missing tests, and stale docs.',
+            'Return only valid JSON with this shape:',
+            '{"summary":["..."],"findings":[{"severity":"high|medium|low","title":"...","file":"optional path","details":"...","recommendation":"..."}]}',
+            `Limit findings to at most ${MAX_FINDINGS}.`,
+            'If there are no actionable findings, return an empty findings array.',
+            'Do not praise, do not mention style nitpicks, and do not invent files not present in the PR.',
+          ].join(' '),
         },
         {
           role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: prompt,
-            },
-          ],
+          content: prompt,
         },
       ],
     }),
@@ -216,37 +213,15 @@ async function requestReviewFromModel(prompt) {
   if (!response.ok) {
     const errorText = await response.text();
     const apiError = parseOpenAiError(errorText);
-    const error = new Error(`OpenAI API failed: ${response.status} ${errorText}`);
-    error.name = 'OpenAIReviewError';
+    const error = new Error(`GitHub Models API failed: ${response.status} ${errorText}`);
+    error.name = 'GitHubModelsReviewError';
     error.status = response.status;
-    error.openaiError = apiError;
+    error.providerError = apiError;
     throw error;
   }
 
   const payload = await response.json();
-  return parseModelJson(extractResponseText(payload));
-}
-
-function buildMockReview(files) {
-  const sampleFile = files[0]?.filename ?? '';
-
-  return {
-    findings: [
-      {
-        severity: 'low',
-        title: 'Mock automated review is enabled',
-        file: sampleFile,
-        details:
-          'This is a synthetic finding generated to validate the PR review loop without calling OpenAI. Treat it as a process test, not as a real code issue.',
-        recommendation:
-          'Reply to this comment as if it were a human review, then push a follow-up commit to validate the end-to-end workflow.',
-      },
-    ],
-    summary: [
-      'The repository is running in `OPENAI_PR_REVIEW_MODE=mock`, so this review comment is intentionally synthetic.',
-      'Use this mode to validate comment publishing, author replies, reruns on new commits, and PR gate behavior before enabling the live model.',
-    ],
-  };
+  return parseModelJson(extractGithubModelsText(payload));
 }
 
 function normalizeReview(review) {
@@ -313,14 +288,14 @@ function buildComment({ headSha, review }) {
 }
 
 function buildFailureComment({ headSha, error }) {
-  const openaiError = error?.openaiError;
-  const isQuotaError = openaiError?.code === 'insufficient_quota';
+  const providerError = error?.providerError;
+  const isQuotaError = providerError?.code === 'insufficient_quota';
   const headline = isQuotaError
-    ? 'OpenAI quota exhausted for the configured `OPENAI_API_KEY`.'
+    ? 'GitHub Models free quota is currently exhausted for this repository or account.'
     : 'Automated PR review could not be completed.';
-  const details = openaiError?.message || error.message || 'Unknown error.';
+  const details = providerError?.message || error.message || 'Unknown error.';
   const followUp = isQuotaError
-    ? '- Repo maintainer: add quota or billing to the OpenAI project, then rerun this workflow or push a new commit.'
+    ? '- Repo maintainer: wait for quota to reset or enable paid GitHub Models usage, then rerun this workflow or push a new commit.'
     : '- Repo maintainer: inspect the `Automated PR Review` workflow logs, fix the integration issue, and rerun the workflow.';
 
   return [
@@ -399,10 +374,7 @@ async function main() {
   ].join('\n');
 
   try {
-    const rawReview = getReviewMode() === 'mock'
-      ? buildMockReview(files)
-      : await requestReviewFromModel(prompt);
-    const review = normalizeReview(rawReview);
+    const review = normalizeReview(await requestReviewFromModel(prompt));
     const commentBody = buildComment({
       headSha: pr.head.sha,
       review,
@@ -411,7 +383,7 @@ async function main() {
     await upsertComment(prNumber, commentBody, comments);
     console.log(`Automated PR review published for PR #${prNumber}.`);
   } catch (error) {
-    if (error?.name !== 'OpenAIReviewError') {
+    if (error?.name !== 'GitHubModelsReviewError') {
       throw error;
     }
 
