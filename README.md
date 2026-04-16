@@ -32,9 +32,10 @@ Toda PR dispara el workflow `Automated PR Review`.
 
 1. El workflow lee el diff y llama a GitHub Models con el `GITHUB_TOKEN` del workflow.
 2. Publica o actualiza un comentario top-level con findings y summary para el `Head SHA` actual.
-3. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
-4. Un push nuevo vuelve a ejecutar la review con la version actual del workflow.
-5. Si el workflow falla, revisa primero el log del paso `Run automated PR review`.
+3. En el mismo run valida que ese comentario satisface el gate para el `Head SHA` actual.
+4. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
+5. Un push nuevo vuelve a ejecutar la review con la version actual del workflow.
+6. Si el workflow falla, revisa primero el log del paso `Run automated PR review`.
 
 Configuración necesaria en GitHub:
 
@@ -50,7 +51,7 @@ GITHUB_MODELS_PR_REVIEW_MODEL=openai/gpt-4o-mini
 ```
 
 GitHub Models incluye uso gratuito limitado para empezar y puede ejecutarse desde GitHub Actions con `models: read`.
-El workflow `PR Review Gate` falla si el comentario automático falta o si quedó obsoleto tras un push nuevo.
+El propio workflow `Automated PR Review` falla si el comentario automático falta o si quedó obsoleto tras un push nuevo.
 
 ## Estructura
 
