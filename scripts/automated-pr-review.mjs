@@ -4,6 +4,7 @@ import process from 'node:process';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const GATE_MARKER = '<!-- pr-review-gate -->';
+const INLINE_REVIEW_MARKER = '<!-- auto-pr-review-inline -->';
 const DEFAULT_MODEL = 'openai/gpt-4o-mini';
 const GITHUB_MODELS_URL = 'https://models.github.ai/inference/chat/completions';
 const MAX_FINDINGS = 8;
@@ -100,6 +101,127 @@ function getFileChangeScore(file) {
   return (file.patch ? 100000 : 0) + (file.additions ?? 0) + (file.deletions ?? 0);
 }
 
+function parsePatchEntries(patch) {
+  const entries = [];
+  let oldLine = 0;
+  let newLine = 0;
+
+  for (const rawLine of patch.replace(/\r\n/g, '\n').split('\n')) {
+    const hunkHeader = rawLine.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+
+    if (hunkHeader) {
+      oldLine = Number(hunkHeader[1]);
+      newLine = Number(hunkHeader[2]);
+      entries.push({
+        kind: 'hunk',
+        text: rawLine,
+      });
+      continue;
+    }
+
+    if (rawLine === '\\ No newline at end of file') {
+      continue;
+    }
+
+    const prefix = rawLine[0];
+    const text = rawLine.slice(1);
+
+    if (prefix === ' ') {
+      entries.push({
+        kind: 'context',
+        oldLine,
+        newLine,
+        text,
+        reviewSide: 'RIGHT',
+        reviewLine: newLine,
+      });
+      oldLine += 1;
+      newLine += 1;
+      continue;
+    }
+
+    if (prefix === '+') {
+      entries.push({
+        kind: 'addition',
+        newLine,
+        text,
+        reviewSide: 'RIGHT',
+        reviewLine: newLine,
+      });
+      newLine += 1;
+      continue;
+    }
+
+    if (prefix === '-') {
+      entries.push({
+        kind: 'deletion',
+        oldLine,
+        text,
+        reviewSide: 'LEFT',
+        reviewLine: oldLine,
+      });
+      oldLine += 1;
+    }
+  }
+
+  return entries;
+}
+
+function formatPatchEntryForPrompt(entry) {
+  if (entry.kind === 'hunk') {
+    return entry.text;
+  }
+
+  if (entry.kind === 'deletion') {
+    return `- L${entry.oldLine}: ${entry.text}`;
+  }
+
+  if (entry.kind === 'addition') {
+    return `+ R${entry.newLine}: ${entry.text}`;
+  }
+
+  return `  R${entry.newLine}: ${entry.text}`;
+}
+
+function normalizeLineText(text) {
+  return String(text ?? '').trim();
+}
+
+function buildReviewableLineIndex(files) {
+  return new Map(
+    files.map((file) => {
+      const entries = file.patch ? parsePatchEntries(file.patch) : [];
+      const lines = new Map();
+      const linesByText = new Map();
+
+      for (const entry of entries) {
+        if (entry.reviewSide !== 'RIGHT') {
+          continue;
+        }
+
+        const normalizedText = normalizeLineText(entry.text);
+        lines.set(entry.reviewLine, normalizedText);
+
+        if (!normalizedText) {
+          continue;
+        }
+
+        const matchedLines = linesByText.get(normalizedText) ?? [];
+        matchedLines.push(entry.reviewLine);
+        linesByText.set(normalizedText, matchedLines);
+      }
+
+      return [
+        file.filename,
+        {
+          lines,
+          linesByText,
+        },
+      ];
+    }),
+  );
+}
+
 function buildDiffContext(files, variant) {
   const selectedFiles = [...files]
     .sort((left, right) => getFileChangeScore(right) - getFileChangeScore(left))
@@ -108,7 +230,14 @@ function buildDiffContext(files, variant) {
   const sections = [];
 
   for (const file of selectedFiles) {
-    const patch = file.patch ? truncate(file.patch, variant.maxPatchCharsPerFile) : '[diff omitted by GitHub]';
+    const patch = file.patch
+      ? truncate(
+          parsePatchEntries(file.patch)
+            .map((entry) => formatPatchEntryForPrompt(entry))
+            .join('\n'),
+          variant.maxPatchCharsPerFile,
+        )
+      : '[diff omitted by GitHub]';
     const section = [
       `File: ${file.filename}`,
       `Status: ${file.status}`,
@@ -217,11 +346,13 @@ async function requestReviewFromModel(prompt, maxTokens) {
             'You are an automated senior code reviewer for a pnpm monorepo with Vue 3, Fastify, TypeScript, Zod, Vitest, and Playwright.',
             'Review the PR for correctness first, then regressions, contract drift, broken routes, runtime failures, and mismatches between changed code and expected behavior.',
             'Only report findings that are directly supported by the changed files in this PR.',
-            'Every finding must cite a changed file from the PR. Do not return repo-wide advice, generic documentation suggestions, or generic missing-test complaints unless the changed diff itself clearly justifies them.',
+            'Every finding must cite a changed file and an exact changed or context line from the PR. Do not return repo-wide advice, generic documentation suggestions, or generic missing-test complaints unless the changed diff itself clearly justifies them.',
             'Prefer concrete bugs such as endpoint typos, invalid contract handling, dead code, unreachable branches, wrong environment defaults, or broken validation paths.',
+            'Only report issues that still exist in the final PR diff. Deleted lines are shown as L<number>; current lines are shown as R<number>. Never report a finding against an L<number> line.',
+            'Every finding must include `file`, `line`, and `line_text`. The `line` must match an R<number> line from the diff excerpt, and `line_text` must copy that R-line text exactly.',
             'If the changed diff does not justify a concrete finding, return an empty findings array.',
             'Return only valid JSON with this shape:',
-            '{"summary":["..."],"findings":[{"severity":"high|medium|low","title":"...","file":"optional path","details":"...","recommendation":"..."}]}',
+            '{"summary":["..."],"findings":[{"severity":"high|medium|low","title":"...","file":"path/from/pr","line":123,"line_text":"exact current line text","details":"...","recommendation":"..."}]}',
             `Limit findings to at most ${MAX_FINDINGS}.`,
             'Do not praise, do not mention style nitpicks, and do not invent files not present in the PR.',
           ].join(' '),
@@ -277,7 +408,36 @@ function buildPrompt({ pr, files, variant }) {
   ].join('\n');
 }
 
-function normalizeReview(review) {
+function resolveFindingLine(finding, reviewableLineIndex) {
+  const fileIndex = reviewableLineIndex.get(finding.file);
+
+  if (!fileIndex) {
+    return null;
+  }
+
+  const parsedLine = Number(finding.line);
+  const normalizedLineText = normalizeLineText(finding.lineText);
+
+  if (Number.isInteger(parsedLine) && fileIndex.lines.has(parsedLine)) {
+    if (!normalizedLineText || fileIndex.lines.get(parsedLine) === normalizedLineText) {
+      return parsedLine;
+    }
+  }
+
+  if (!normalizedLineText) {
+    return null;
+  }
+
+  const candidateLines = fileIndex.linesByText.get(normalizedLineText) ?? [];
+
+  if (candidateLines.length === 1) {
+    return candidateLines[0];
+  }
+
+  return null;
+}
+
+function normalizeReview(review, reviewableLineIndex) {
   const findings = Array.isArray(review.findings) ? review.findings : [];
   const summary = Array.isArray(review.summary) ? review.summary : [];
 
@@ -288,10 +448,16 @@ function normalizeReview(review) {
         severity: typeof finding.severity === 'string' ? finding.severity.toLowerCase() : 'medium',
         title: String(finding.title ?? 'Untitled finding').trim(),
         file: typeof finding.file === 'string' ? finding.file.trim() : '',
+        line: Number(finding.line),
+        lineText: normalizeLineText(finding.line_text),
         details: String(finding.details ?? '').trim(),
         recommendation: String(finding.recommendation ?? '').trim(),
       }))
-      .filter((finding) => finding.title && finding.details),
+      .map((finding) => ({
+        ...finding,
+        line: resolveFindingLine(finding, reviewableLineIndex),
+      }))
+      .filter((finding) => finding.title && finding.details && finding.file && Number.isInteger(finding.line)),
     summary: summary.map((item) => String(item).trim()).filter(Boolean).slice(0, 5),
   };
 }
@@ -304,7 +470,7 @@ function formatFindings(findings) {
   return findings
     .map((finding, index) => {
       const prefix = `${index + 1}. [${finding.severity}] ${finding.title}`;
-      const fileLine = finding.file ? `File: \`${finding.file}\`` : 'File: n/a';
+      const fileLine = `File: \`${finding.file}:${finding.line}\``;
       const recommendation = finding.recommendation
         ? `Recommendation: ${finding.recommendation}`
         : 'Recommendation: Review manually.';
@@ -336,6 +502,7 @@ function buildComment({ headSha, review }) {
     formatSummary(review.summary),
     '',
     '### Follow-up',
+    '- Precise findings are also posted as inline comments in the `Files changed` tab when a file and line can be anchored safely.',
     '- PR owner: reply in the PR conversation explaining which findings you will address, dismiss, or defer.',
   ].join('\n');
 }
@@ -370,6 +537,21 @@ function buildFailureComment({ headSha, error }) {
   ].join('\n');
 }
 
+function buildInlineCommentBody(finding) {
+  const recommendation = finding.recommendation
+    ? `Suggested follow-up: ${finding.recommendation}`
+    : null;
+
+  return [
+    INLINE_REVIEW_MARKER,
+    `**[${finding.severity}] ${finding.title}**`,
+    finding.details,
+    recommendation,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 async function upsertComment(prNumber, body, comments) {
   const existingComment = comments
     .filter((comment) => String(comment.body ?? '').includes(AUTO_REVIEW_MARKER))
@@ -393,11 +575,38 @@ async function upsertComment(prNumber, body, comments) {
   });
 }
 
+async function replaceInlineComments(prNumber, headSha, findings) {
+  const reviewComments = await githubPaginate(`/pulls/${prNumber}/comments`);
+  const automatedInlineComments = reviewComments.filter((comment) =>
+    String(comment.body ?? '').includes(INLINE_REVIEW_MARKER),
+  );
+
+  for (const comment of automatedInlineComments) {
+    await githubRequest(`/pulls/comments/${comment.id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  for (const finding of findings) {
+    await githubRequest(`/pulls/${prNumber}/comments`, {
+      method: 'POST',
+      body: {
+        body: buildInlineCommentBody(finding),
+        commit_id: headSha,
+        path: finding.file,
+        line: finding.line,
+        side: 'RIGHT',
+      },
+    });
+  }
+}
+
 async function main() {
   const prNumber = Number(getRequiredEnv('PR_NUMBER'));
   const pr = await githubRequest(`/pulls/${prNumber}`);
   const files = await githubPaginate(`/pulls/${prNumber}/files`);
   const comments = await githubPaginate(`/issues/${prNumber}/comments`);
+  const reviewableLineIndex = buildReviewableLineIndex(files);
 
   try {
     const standardPrompt = buildPrompt({
@@ -423,13 +632,14 @@ async function main() {
       rawReview = await requestReviewFromModel(compactPrompt, PROMPT_VARIANTS.compact.maxTokens);
     }
 
-    const review = normalizeReview(rawReview);
+    const review = normalizeReview(rawReview, reviewableLineIndex);
     const commentBody = buildComment({
       headSha: pr.head.sha,
       review,
     });
 
     await upsertComment(prNumber, commentBody, comments);
+    await replaceInlineComments(prNumber, pr.head.sha, review.findings);
     console.log(`Automated PR review published for PR #${prNumber}.`);
   } catch (error) {
     if (error?.name !== 'GitHubModelsReviewError') {
@@ -442,6 +652,7 @@ async function main() {
     });
 
     await upsertComment(prNumber, failureComment, comments);
+    await replaceInlineComments(prNumber, pr.head.sha, []);
     throw error;
   }
 }

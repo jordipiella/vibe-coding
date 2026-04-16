@@ -32,10 +32,11 @@ Toda PR dispara el workflow `Automated PR Review`.
 
 1. El workflow lee el diff y llama a GitHub Models con el `GITHUB_TOKEN` del workflow.
 2. Publica o actualiza un comentario top-level con findings y summary para el `Head SHA` actual.
-3. En el mismo run valida que ese comentario satisface el gate para el `Head SHA` actual.
-4. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
-5. Un push nuevo vuelve a ejecutar la review con la version actual del workflow.
-6. Si el workflow falla, revisa primero el log del paso `Run automated PR review`.
+3. Cuando puede anclar el finding a una línea concreta del diff actual, también publica comentarios inline en `Files changed`.
+4. En el mismo run valida que el comentario top-level satisface el gate para el `Head SHA` actual.
+5. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
+6. Un push nuevo vuelve a ejecutar la review con la version actual del workflow.
+7. Si el workflow falla, revisa primero el log del paso `Run automated PR review`.
 
 Configuración necesaria en GitHub:
 
