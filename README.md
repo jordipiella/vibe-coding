@@ -34,6 +34,7 @@ Toda PR dispara el workflow `Automated PR Review`.
 2. Publica o actualiza un comentario top-level con findings y summary para el `Head SHA` actual.
 3. El propietario de la PR debe responder en la conversación y actualizar el código si corresponde.
 4. Un push nuevo vuelve a ejecutar la review con la version actual del workflow.
+5. Si el workflow falla, revisa primero el log del paso `Run automated PR review`.
 
 Configuración necesaria en GitHub:
 
