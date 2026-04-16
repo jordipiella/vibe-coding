@@ -1,0 +1,7 @@
+interface:
+  display_name: "Quality Gate"
+  short_description: "Validate lint, types, tests, build and docs"
+  default_prompt: "Use $quality-gate to validate this change before review and summarize blockers."
+
+policy:
+  allow_implicit_invocation: true

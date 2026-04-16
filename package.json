@@ -1,0 +1,33 @@
+{
+  "name": "vibe-coding",
+  "private": true,
+  "packageManager": "pnpm@10.7.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @vibe/api --filter @vibe/web dev",
+    "dev:api": "pnpm --filter @vibe/api dev",
+    "dev:web": "pnpm --filter @vibe/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @vibe/web test:e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.8.1",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "eslint": "^9.13.0",
+    "eslint-plugin-vue": "^9.29.0",
+    "globals": "^15.11.0",
+    "jsdom": "^25.0.1",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.10.0",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.3",
+    "vue-eslint-parser": "^9.4.3",
+    "vue-tsc": "^2.1.6"
+  }
+}

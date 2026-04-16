@@ -1,0 +1,22 @@
+{
+  "name": "@vibe/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "lint": "eslint src tests --max-warnings=0",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@vibe/contracts": "workspace:*",
+    "pinia": "^2.2.4",
+    "vue": "^3.5.12",
+    "vue-router": "^4.4.5"
+  }
+}
+
