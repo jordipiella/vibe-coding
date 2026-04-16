@@ -38,6 +38,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_PR_REVIEW_MODE: ${{ vars.OPENAI_PR_REVIEW_MODE }}
           OPENAI_PR_REVIEW_MODEL: ${{ vars.OPENAI_PR_REVIEW_MODEL }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_API_URL: ${{ github.api_url }}

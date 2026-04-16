@@ -160,6 +160,10 @@ function parseOpenAiError(errorText) {
   }
 }
 
+function getReviewMode() {
+  return (process.env.OPENAI_PR_REVIEW_MODE?.trim().toLowerCase() || 'live');
+}
+
 async function requestReviewFromModel(prompt) {
   const apiKey = getRequiredEnv('OPENAI_API_KEY');
   const model = process.env.OPENAI_PR_REVIEW_MODEL?.trim() || DEFAULT_MODEL;
@@ -221,6 +225,28 @@ async function requestReviewFromModel(prompt) {
 
   const payload = await response.json();
   return parseModelJson(extractResponseText(payload));
+}
+
+function buildMockReview(files) {
+  const sampleFile = files[0]?.filename ?? '';
+
+  return {
+    findings: [
+      {
+        severity: 'low',
+        title: 'Mock automated review is enabled',
+        file: sampleFile,
+        details:
+          'This is a synthetic finding generated to validate the PR review loop without calling OpenAI. Treat it as a process test, not as a real code issue.',
+        recommendation:
+          'Reply to this comment as if it were a human review, then push a follow-up commit to validate the end-to-end workflow.',
+      },
+    ],
+    summary: [
+      'The repository is running in `OPENAI_PR_REVIEW_MODE=mock`, so this review comment is intentionally synthetic.',
+      'Use this mode to validate comment publishing, author replies, reruns on new commits, and PR gate behavior before enabling the live model.',
+    ],
+  };
 }
 
 function normalizeReview(review) {
@@ -373,7 +399,10 @@ async function main() {
   ].join('\n');
 
   try {
-    const review = normalizeReview(await requestReviewFromModel(prompt));
+    const rawReview = getReviewMode() === 'mock'
+      ? buildMockReview(files)
+      : await requestReviewFromModel(prompt);
+    const review = normalizeReview(rawReview);
     const commentBody = buildComment({
       headSha: pr.head.sha,
       review,

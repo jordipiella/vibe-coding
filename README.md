@@ -38,10 +38,24 @@ Configuración necesaria en GitHub:
 
 ```text
 Repository secret: OPENAI_API_KEY
+Repository variable (optional): OPENAI_PR_REVIEW_MODE
 Repository variable (optional): OPENAI_PR_REVIEW_MODEL
 ```
 
-El valor por defecto del modelo es `gpt-5-1-mini`.
+Valores recomendados:
+
+```text
+OPENAI_PR_REVIEW_MODE=live
+OPENAI_PR_REVIEW_MODEL=gpt-5-mini
+```
+
+Para probar el flujo sin consumir cuota, usa:
+
+```text
+OPENAI_PR_REVIEW_MODE=mock
+```
+
+En `mock`, el workflow publica un comentario sintético para validar el ciclo completo de review.
 El workflow `PR Review Gate` falla si el comentario automático falta o si quedó obsoleto tras un push nuevo.
 
 ## Estructura
