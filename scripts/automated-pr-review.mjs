@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
@@ -45,15 +44,6 @@ function truncate(value, maxChars) {
   }
 
   return `${value.slice(0, maxChars)}\n...[truncated]`;
-}
-
-async function readOptionalFile(path, maxChars) {
-  try {
-    const content = await readFile(path, 'utf8');
-    return truncate(content, maxChars);
-  } catch {
-    return '';
-  }
 }
 
 async function githubRequest(path, { method = 'GET', body, headers = {} } = {}) {
@@ -225,11 +215,14 @@ async function requestReviewFromModel(prompt, maxTokens) {
           role: 'system',
           content: [
             'You are an automated senior code reviewer for a pnpm monorepo with Vue 3, Fastify, TypeScript, Zod, Vitest, and Playwright.',
-            'Review the PR for correctness first, then regressions, contract drift, missing tests, and stale docs.',
+            'Review the PR for correctness first, then regressions, contract drift, broken routes, runtime failures, and mismatches between changed code and expected behavior.',
+            'Only report findings that are directly supported by the changed files in this PR.',
+            'Every finding must cite a changed file from the PR. Do not return repo-wide advice, generic documentation suggestions, or generic missing-test complaints unless the changed diff itself clearly justifies them.',
+            'Prefer concrete bugs such as endpoint typos, invalid contract handling, dead code, unreachable branches, wrong environment defaults, or broken validation paths.',
+            'If the changed diff does not justify a concrete finding, return an empty findings array.',
             'Return only valid JSON with this shape:',
             '{"summary":["..."],"findings":[{"severity":"high|medium|low","title":"...","file":"optional path","details":"...","recommendation":"..."}]}',
             `Limit findings to at most ${MAX_FINDINGS}.`,
-            'If there are no actionable findings, return an empty findings array.',
             'Do not praise, do not mention style nitpicks, and do not invent files not present in the PR.',
           ].join(' '),
         },
@@ -255,7 +248,7 @@ async function requestReviewFromModel(prompt, maxTokens) {
   return parseModelJson(extractGithubModelsText(payload));
 }
 
-function buildPrompt({ pr, files, agentsContext, stackProfileContext, variant }) {
+function buildPrompt({ pr, files, variant }) {
   const changedFiles = files
     .slice(0, variant.maxChangedFilesList)
     .map((file) => `- ${file.filename} (${file.status}, +${file.additions}/-${file.deletions})`)
@@ -271,6 +264,7 @@ function buildPrompt({ pr, files, agentsContext, stackProfileContext, variant })
     `Head SHA: ${pr.head.sha}`,
     `Base branch: ${pr.base.ref}`,
     `Head branch: ${pr.head.ref}`,
+    'Tech stack: Vue 3, Fastify, TypeScript, Zod, Vitest, Playwright.',
     '',
     'PR body:',
     pr.body?.trim() || '[empty]',
@@ -280,12 +274,6 @@ function buildPrompt({ pr, files, agentsContext, stackProfileContext, variant })
     '',
     'Diff excerpts:',
     buildDiffContext(files, variant),
-    '',
-    'Repository review context from AGENTS.md:',
-    truncate(agentsContext || '[not available]', variant.maxAgentsChars),
-    '',
-    'Repository stack profile:',
-    truncate(stackProfileContext || '[not available]', variant.maxStackChars),
   ].join('\n');
 }
 
@@ -410,15 +398,11 @@ async function main() {
   const pr = await githubRequest(`/pulls/${prNumber}`);
   const files = await githubPaginate(`/pulls/${prNumber}/files`);
   const comments = await githubPaginate(`/issues/${prNumber}/comments`);
-  const agentsContext = await readOptionalFile('AGENTS.md', 5000);
-  const stackProfileContext = await readOptionalFile('docs/stack-profile.md', 5000);
 
   try {
     const standardPrompt = buildPrompt({
       pr,
       files,
-      agentsContext,
-      stackProfileContext,
       variant: PROMPT_VARIANTS.standard,
     });
     let rawReview;
@@ -433,8 +417,6 @@ async function main() {
       const compactPrompt = buildPrompt({
         pr,
         files,
-        agentsContext,
-        stackProfileContext,
         variant: PROMPT_VARIANTS.compact,
       });
 
