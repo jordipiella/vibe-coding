@@ -13,8 +13,13 @@ export function createApp() {
     return healthResponseSchema.parse({
       status: 'ok',
       service: 'api',
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
     });
+  });
+
+  app.get('/status', async (_request, reply) => {
+    const data = await fetch('http://localhost:3000/health').then(r => r.json());
+    reply.send(data);
   });
 
   return app;
