@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Stack
 
 ## Workspace
@@ -20,6 +16,10 @@ sidebar_position: 2
 
 ## Contratos compartidos
 Los schemas Zod en `packages/contracts` son la fuente de verdad. Los tipos TypeScript se infieren desde ellos. Todo cambio de contrato viaja en el mismo commit por `web`, `api` y `contracts`.
+
+## Nuevos Endpoints de API
+### GET /version
+Este endpoint devuelve la versión y entorno de la aplicación. Asegúrate de utilizar la nueva función `fetchVersion` desde el cliente para obtener estos datos de manera efectiva.
 
 ## Testing
 - Unit e integration: Vitest
