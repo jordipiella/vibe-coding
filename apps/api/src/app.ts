@@ -13,7 +13,7 @@ export function createApp() {
     return healthResponseSchema.parse({
       status: 'ok',
       service: 'api',
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(),
     });
   });
 
