@@ -212,7 +212,7 @@ async function createDocsPR(result, headSha) {
   const pr = await githubRequest('/pulls', {
     method: 'POST',
     body: {
-      title: result.pr_title || 'docs: automated documentation update',
+      title: `DOCS: ${result.pr_title || 'automated documentation update'}`,
       body: [
         '## Automated documentation update',
         '',
