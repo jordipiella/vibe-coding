@@ -34,7 +34,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.7.0
 
       - name: Install dependencies
         run: pnpm --filter @vibe/docs install
