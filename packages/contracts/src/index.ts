@@ -8,6 +8,12 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+export const pingResponseSchema = z.object({
+  pong: z.literal(true),
+});
+
+export type PingResponse = z.infer<typeof pingResponseSchema>;
+
 export const versionResponseSchema = z.object({
   version: z.string(),
   environment: z.enum(['development', 'production', 'test']),

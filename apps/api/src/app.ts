@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 
-import { healthResponseSchema, versionResponseSchema } from '@vibe/contracts';
+import { healthResponseSchema, pingResponseSchema, versionResponseSchema } from '@vibe/contracts';
 
 export function createApp() {
   const app = Fastify({
@@ -15,6 +15,11 @@ export function createApp() {
       service: 'api',
       timestamp: new Date().toISOString(),
     });
+  });
+
+  app.get('/ping', async (_request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    return pingResponseSchema.parse({ pong: true });
   });
 
   app.get('/version', async (_request, reply) => {
