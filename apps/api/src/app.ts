@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 
-import { healthResponseSchema } from '@vibe/contracts';
+import { healthResponseSchema, versionResponseSchema } from '@vibe/contracts';
 
 export function createApp() {
   const app = Fastify({
@@ -17,9 +17,13 @@ export function createApp() {
     });
   });
 
-  app.get('/status', async (_request, reply) => {
-    const data = await fetch('http://localhost:3000/health').then(r => r.json());
-    reply.send(data);
+  app.get('/version', async (_request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+
+    return versionResponseSchema.parse({
+      version: process.env.npm_package_version ?? '0.0.0',
+      environment: (process.env.NODE_ENV ?? 'development') as 'development' | 'production' | 'test',
+    });
   });
 
   return app;

@@ -8,6 +8,13 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+export const versionResponseSchema = z.object({
+  version: z.string(),
+  environment: z.enum(['development', 'production', 'test']),
+});
+
+export type VersionResponse = z.infer<typeof versionResponseSchema>;
+
 export const apiErrorSchema = z.object({
   message: z.string(),
 });
