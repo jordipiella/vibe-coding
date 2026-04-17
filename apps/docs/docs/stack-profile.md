@@ -1,7 +1,3 @@
----
-sidebar_position: 2
----
-
 # Stack
 
 ## Workspace
@@ -33,3 +29,6 @@ pnpm test
 pnpm build
 pnpm test:e2e
 ```
+
+## Cambios en el API
+- El formato del `timestamp` en la respuesta de salud ha cambiado a un string ISO.
