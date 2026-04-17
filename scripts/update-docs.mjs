@@ -174,7 +174,13 @@ async function createDocsPR(result, headSha) {
   const branchName = `docs/auto-update-${headSha.slice(0, 7)}`;
   const repository = getRequiredEnv('GITHUB_REPOSITORY');
 
-  // Create branch from master
+  // Create branch from master (delete first if it already exists)
+  try {
+    await githubRequest(`/git/refs/heads/${branchName}`, { method: 'DELETE' });
+  } catch {
+    // Branch didn't exist, that's fine
+  }
+
   await githubRequest('/git/refs', {
     method: 'POST',
     body: { ref: `refs/heads/${branchName}`, sha: headSha },
