@@ -65,10 +65,10 @@ Si un repo no implementa alguno de estos comandos, el `validator` debe reportar 
 
 ## Gate de PR review
 - Toda PR abierta en el mismo repositorio debe pasar el workflow `Automated PR Review`.
-- Toda PR abierta debe pasar el workflow `PR Review Gate`.
 - El comentario automático lleva los marcadores `<!-- auto-pr-review -->` y `<!-- pr-review-gate -->`.
+- Cuando el finding se puede anclar con precisión al diff actual, el workflow también publica comentarios inline en `Files changed`.
 - El comentario debe incluir `Head SHA`, `Findings` y `Summary`.
-- Si cambia el `Head SHA`, el workflow vuelve a revisar la PR y actualiza el comentario.
+- Si cambia el `Head SHA`, el mismo workflow vuelve a revisar la PR, actualiza el comentario y valida el gate dentro del mismo run.
 
 ## Regla de aprendizaje
 Construir por capas. Primero definir roles, skills y criterios de calidad. Después añadir MCPs y, solo cuando el repositorio tenga comandos reales, automatizar validación y revisión.

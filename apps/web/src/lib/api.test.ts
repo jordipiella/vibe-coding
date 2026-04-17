@@ -8,12 +8,13 @@ describe('fetchHealth', () => {
   });
 
   it('parses the health payload', async () => {
+    const timestamp = new Date().toISOString();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         status: 'ok',
         service: 'api',
-        timestamp: new Date().toISOString(),
+        timestamp,
       }),
     });
 
@@ -21,7 +22,9 @@ describe('fetchHealth', () => {
 
     const payload = await fetchHealth();
 
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3000/health');
     expect(payload.service).toBe('api');
+    expect(payload.timestamp).toBe(timestamp);
   });
 
   it('throws when the response is not ok', async () => {
@@ -35,4 +38,3 @@ describe('fetchHealth', () => {
     await expect(fetchHealth()).rejects.toThrow('API request failed with status 500');
   });
 });
-
