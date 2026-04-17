@@ -8,6 +8,13 @@ export const healthResponseSchema = z.object({
 
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+export const readinessResponseSchema = z.object({
+  ready: z.boolean(),
+  uptime: z.number(),
+});
+
+export type ReadinessResponse = z.infer<typeof readinessResponseSchema>;
+
 export const pingResponseSchema = z.object({
   pong: z.literal(true),
 });

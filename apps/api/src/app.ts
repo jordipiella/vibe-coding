@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 
-import { healthResponseSchema, pingResponseSchema, versionResponseSchema } from '@vibe/contracts';
+import { healthResponseSchema, pingResponseSchema, readinessResponseSchema, versionResponseSchema } from '@vibe/contracts';
 
 export function createApp() {
   const app = Fastify({
@@ -14,6 +14,14 @@ export function createApp() {
       status: 'ok',
       service: 'api',
       timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/ready', async (_request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    return readinessResponseSchema.parse({
+      ready: true,
+      uptime: process.uptime(),
     });
   });
 
