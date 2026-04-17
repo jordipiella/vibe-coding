@@ -30,6 +30,7 @@ jobs:
       - name: Run docs update agent
         env:
           GITHUB_TOKEN: ${{ secrets.DOCS_BOT_PAT }}
+          GITHUB_MODELS_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_API_URL: ${{ github.api_url }}
           GITHUB_MODELS_PR_REVIEW_MODEL: ${{ vars.GITHUB_MODELS_PR_REVIEW_MODEL }}

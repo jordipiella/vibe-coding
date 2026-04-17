@@ -107,7 +107,7 @@ function parseModelJson(text) {
 }
 
 async function requestDocsUpdateFromModel(diff, docs) {
-  const token = getRequiredEnv('GITHUB_TOKEN');
+  const token = process.env.GITHUB_MODELS_TOKEN?.trim() || getRequiredEnv('GITHUB_TOKEN');
   const model = process.env.GITHUB_MODELS_PR_REVIEW_MODEL?.trim() || DEFAULT_MODEL;
 
   const docsContext = docs
