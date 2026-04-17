@@ -1,0 +1,38 @@
+name: Update Docs
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'apps/api/src/**'
+      - 'apps/web/src/**'
+      - 'packages/contracts/src/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+  models: read
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run docs update agent
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_MODELS_PR_REVIEW_MODEL: ${{ vars.GITHUB_MODELS_PR_REVIEW_MODEL }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
+        run: node scripts/update-docs.mjs
