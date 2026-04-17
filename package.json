@@ -6,6 +6,7 @@
     "dev": "pnpm --parallel --filter @vibe/api --filter @vibe/web dev",
     "dev:api": "pnpm --filter @vibe/api dev",
     "dev:web": "pnpm --filter @vibe/web dev",
+    "dev:docs": "pnpm --filter @vibe/docs start",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
