@@ -1,0 +1,35 @@
+---
+sidebar_position: 2
+---
+
+# Stack
+
+## Workspace
+- Gestor: `pnpm` monorepo
+- Apps: `apps/web`, `apps/api`
+- Contratos compartidos: `packages/contracts`
+
+## Frontend
+- Vue 3 + Vite + TypeScript
+- Routing: Vue Router
+- Estado: Pinia
+
+## Backend
+- Node LTS + Fastify + TypeScript
+- Validación: Zod
+
+## Contratos compartidos
+Los schemas Zod en `packages/contracts` son la fuente de verdad. Los tipos TypeScript se infieren desde ellos. Todo cambio de contrato viaja en el mismo commit por `web`, `api` y `contracts`.
+
+## Testing
+- Unit e integration: Vitest
+- E2E: Playwright
+
+## Validación
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
