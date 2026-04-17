@@ -32,3 +32,4 @@ pnpm test:e2e
 
 ## Cambios en el API
 - El formato del `timestamp` en la respuesta de salud ha cambiado a un string ISO.
+- Se ha añadido un nuevo endpoint `/ready` que devuelve el estado de disponibilidad de la aplicación. La respuesta incluye un booleano `ready` y el `uptime` en segundos.
